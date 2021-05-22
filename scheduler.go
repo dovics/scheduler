@@ -8,16 +8,14 @@ import (
 )
 
 var (
-	// ErrScheduleTimeout happens when task schedule failed during the specific interval.
-	ErrScheduleTimeout = errors.New("schedule not available currently")
-
-	errSchedulerPoolStop = errors.New("pool stopped")
+	errSchedulerStop = errors.New("scheduler stopped")
 )
 
 // Scheduler caches tasks and schedule tasks to work.
 type Scheduler struct {
-	queue    Queue
-	workers  chan chan Task
+	queue     Queue
+	transport Transport
+
 	shutdown chan struct{}
 	stop     sync.Once
 }
@@ -29,15 +27,15 @@ func New(wsize int) *Scheduler {
 	}
 
 	s := &Scheduler{
-		queue:    NewQueue(),
-		workers:  make(chan chan Task, wsize),
-		shutdown: make(chan struct{}),
+		queue:     NewQueue(),
+		transport: NewMemoryTransport(),
+		shutdown:  make(chan struct{}),
 	}
 
 	go s.start()
 
 	for i := 0; i < wsize; i++ {
-		s.startWorker()
+		s.startWorker(s.shutdown)
 	}
 
 	return s
@@ -47,30 +45,30 @@ func New(wsize int) *Scheduler {
 func (s *Scheduler) start() {
 	for {
 		select {
-		case worker := <-s.workers:
+		case worker := <-s.transport.Workers():
 			task := s.queue.Get()
 			worker <- task
 		case <-s.shutdown:
-			s.stopGracefully()
 			return
 		}
 	}
 }
 
-func (s *Scheduler) isShutdown() error {
+//
+func (s *Scheduler) isShutdown() bool {
 	select {
 	case <-s.shutdown:
-		return errSchedulerPoolStop
+		return true
 	default:
 	}
 
-	return nil
+	return false
 }
 
 // Schedule push a task on queue.
 func (s *Scheduler) ScheduleWithCtx(ctx context.Context, t Task) error {
-	if err := s.isShutdown(); err != nil {
-		return err
+	if s.isShutdown() {
+		return errSchedulerStop
 	}
 
 	task := t.SetContext(ctx).BindScheduler(s)
@@ -81,8 +79,8 @@ func (s *Scheduler) ScheduleWithCtx(ctx context.Context, t Task) error {
 
 // Schedule push a task on queue.
 func (s *Scheduler) Schedule(t Task) error {
-	if err := s.isShutdown(); err != nil {
-		return err
+	if s.isShutdown() {
+		return errSchedulerStop
 	}
 
 	t = t.BindScheduler(s)
@@ -105,9 +103,5 @@ func (s *Scheduler) Stop() {
 
 func (s *Scheduler) Wait() {
 	for !s.queue.IsEmpty() {
-
 	}
-}
-func (s *Scheduler) stopGracefully() {
-	// todo
 }

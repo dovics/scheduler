@@ -16,7 +16,7 @@ var (
 
 // Scheduler caches tasks and schedule tasks to work.
 type Scheduler struct {
-	queue    chan Task
+	queue    Queue
 	workers  chan chan Task
 	shutdown chan struct{}
 	stop     sync.Once
@@ -29,7 +29,7 @@ func New(wsize int) *Scheduler {
 	}
 
 	s := &Scheduler{
-		queue:    make(chan Task, 8080),
+		queue:    NewQueue(),
 		workers:  make(chan chan Task, wsize),
 		shutdown: make(chan struct{}),
 	}
@@ -48,7 +48,7 @@ func (s *Scheduler) start() {
 	for {
 		select {
 		case worker := <-s.workers:
-			task := <-s.queue
+			task := s.queue.Get()
 			worker <- task
 		case <-s.shutdown:
 			s.stopGracefully()
@@ -68,13 +68,32 @@ func (s *Scheduler) isShutdown() error {
 }
 
 // Schedule push a task on queue.
-func (s *Scheduler) Schedule(ctx context.Context, task Task) error {
+func (s *Scheduler) ScheduleWithCtx(ctx context.Context, t Task) error {
 	if err := s.isShutdown(); err != nil {
 		return err
 	}
 
-	t := &taskWrapper{task, ctx}
-	s.queue <- t
+	task := t.SetContext(ctx).BindScheduler(s)
+
+	s.queue.Add(task)
+	return nil
+}
+
+// Schedule push a task on queue.
+func (s *Scheduler) Schedule(t Task) error {
+	if err := s.isShutdown(); err != nil {
+		return err
+	}
+
+	t = t.BindScheduler(s)
+
+	if t, ok := t.(*task); ok {
+		if t.ctx == nil {
+			t.SetContext(context.Background())
+		}
+	}
+
+	s.queue.Add(t)
 	return nil
 }
 
@@ -84,6 +103,11 @@ func (s *Scheduler) Stop() {
 	})
 }
 
+func (s *Scheduler) Wait() {
+	for !s.queue.IsEmpty() {
+
+	}
+}
 func (s *Scheduler) stopGracefully() {
 	// todo
 }

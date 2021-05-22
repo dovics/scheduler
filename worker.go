@@ -1,7 +1,5 @@
 package scheduler
 
-import "log"
-
 type Work interface {
 	Work()
 }
@@ -24,31 +22,32 @@ func (s *Scheduler) startWorker() {
 
 // Worker's main loop.
 func (w *goroutineWorker) Work() {
-	wrapper := func(task Task) {
+	wrapper := func(t Task) {
+		realTask := t.(*task)
+
 		defer func() {
 			if r := recover(); r != nil {
+				realTask.sche.queue.Done(t)
 				return
 			}
 		}()
 
-		t := task.(*taskWrapper)
-
 		select {
-		case <-t.ctx.Done():
+		case <-realTask.ctx.Done():
+			realTask.sche.queue.Done(t)
+			realTask.cancelFunc()
 			return
 		default:
 		}
 
-		err := task.Do(t.ctx)
-		if err != nil {
-			log.Println("[Task]", err)
-			w.sche.Schedule(t.ctx, t.task)
-		}
+		realTask.Do(realTask.ctx)
+		realTask.sche.queue.Done(t)
 	}
 
 	w.sche.workers <- w.task
 
 	for t := range w.task {
+		// log.Println("runtask")
 		wrapper(t)
 		w.sche.workers <- w.task
 	}

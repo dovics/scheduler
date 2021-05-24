@@ -49,7 +49,7 @@ func (s *Scheduler) Start(wsize int) {
 	}
 }
 
-//
+// isShutdown returns whether the schduler has shutdown
 func (s *Scheduler) isShutdown() bool {
 	select {
 	case <-s.shutdown:
@@ -60,6 +60,7 @@ func (s *Scheduler) isShutdown() bool {
 	return false
 }
 
+// SortByPriority uses priority as the comparison factors
 func (s *Scheduler) SortByPriority() error {
 	if !s.queue.IsEmpty() {
 		return errors.New("the scheduler has start, can't set compare function in runtime")
@@ -69,6 +70,7 @@ func (s *Scheduler) SortByPriority() error {
 	return nil
 }
 
+// SortByPriority uses deadline as the comparison factors
 func (s *Scheduler) SortByDeadline() error {
 	if !s.queue.IsEmpty() {
 		return errors.New("the scheduler has start, can't set compare function in runtime")
@@ -108,12 +110,14 @@ func (s *Scheduler) Schedule(t Task) error {
 	return nil
 }
 
+// Stop closes the schduler
 func (s *Scheduler) Stop() {
 	s.stop.Do(func() {
 		close(s.shutdown)
 	})
 }
 
+// Wait waits for all task finished
 func (s *Scheduler) Wait() {
 	for !s.queue.IsEmpty() {
 	}

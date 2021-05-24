@@ -28,34 +28,30 @@ func (s *Scheduler) startWorker(stopCh chan struct{}) {
 
 // Worker's main loop.
 func (w *goroutineWorker) Work() {
-	wrapper := func(t Task) {
-		realTask := t.(*task)
-
-		defer func() {
-			if r := recover(); r != nil {
-				realTask.sche.queue.Done(t)
-				return
-			}
-		}()
-
-		select {
-		case <-realTask.ctx.Done():
-			realTask.sche.queue.Done(t)
-			realTask.cancelFunc()
-			return
-		default:
-		}
-
-		realTask.Do(realTask.ctx)
-		realTask.sche.queue.Done(t)
-	}
-
 	w.sche.workers <- w.task
 
 	for {
 		select {
 		case t := <-w.task:
-			wrapper(t)
+			realTask := t.(*task)
+
+			defer func() {
+				if r := recover(); r != nil {
+					realTask.sche.queue.Done(t)
+					return
+				}
+			}()
+
+			select {
+			case <-realTask.ctx.Done():
+				realTask.sche.queue.Done(t)
+				realTask.cancelFunc()
+				return
+			default:
+			}
+
+			realTask.Do(realTask.ctx)
+			realTask.sche.queue.Done(t)
 			w.sche.workers <- w.task
 		case <-w.stopCh:
 			close(w.task)

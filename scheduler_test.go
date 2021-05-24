@@ -7,15 +7,11 @@ import (
 	"time"
 )
 
-const (
-	wSize = 2
-)
-
 func TestScheduler(t *testing.T) {
 	taskNum := 10
 	counter := 0
 	s := New()
-	go s.Start(wSize)
+	go s.Start(2)
 
 	for i := 0; i < taskNum; i++ {
 		s.Schedule(TaskFunc(func(ctx context.Context) error {
@@ -36,9 +32,9 @@ func TestTaskCrash(t *testing.T) {
 	taskNum := 10
 	counter := 0
 	s := New()
-	go s.Start(wSize)
+	go s.Start(2)
 
-	for i := 0; i < taskNum+wSize; i++ {
+	for i := 0; i < taskNum+2; i++ {
 		s.Schedule(TaskFunc(func(ctx context.Context) error {
 			counter++
 			panic("panic")
@@ -48,22 +44,22 @@ func TestTaskCrash(t *testing.T) {
 	s.Wait()
 	s.Stop()
 
-	if counter != taskNum+wSize {
-		t.Errorf("counter is expected as %d, actually %d", taskNum+wSize, counter)
+	if counter != taskNum+2 {
+		t.Errorf("counter is expected as %d, actually %d", taskNum+2, counter)
 	}
 }
 
 func TestCancel(t *testing.T) {
 	counter := 0
 	s := New()
-	go s.Start(wSize)
+	go s.Start(2)
 
 	f := func(ctx context.Context) error {
 		time.Sleep(2000)
 		return nil
 	}
 
-	for i := 0; i < wSize; i++ {
+	for i := 0; i < 2; i++ {
 		s.Schedule(TaskFunc(f))
 	}
 
@@ -87,9 +83,9 @@ func TestCancel(t *testing.T) {
 func TestRetry(t *testing.T) {
 	taskNum := 10
 	counter := 0
-	retryTimes := 10
+	retryTimes := uint(10)
 	s := New()
-	go s.Start(wSize)
+	go s.Start(2)
 	f := func(ctx context.Context) error {
 		counter++
 		return errors.New("test retry")
@@ -102,8 +98,8 @@ func TestRetry(t *testing.T) {
 	s.Wait()
 	s.Stop()
 
-	if counter != taskNum*(retryTimes+1) {
-		t.Errorf("counter is expected as %d, actually %d", taskNum*(retryTimes+1), counter)
+	if counter != taskNum*(int(retryTimes)+1) {
+		t.Errorf("counter is expected as %d, actually %d", taskNum*(int(retryTimes)+1), counter)
 	}
 }
 
@@ -115,7 +111,7 @@ func TestDuplicate(t *testing.T) {
 	}))
 
 	s := New()
-	go s.Start(wSize)
+	go s.Start(2)
 	for i := 0; i < 10; i++ {
 		s.Schedule(task)
 	}
@@ -155,7 +151,7 @@ func TestPriority(t *testing.T) {
 		ctx := context.Background()
 
 		ctx = context.WithValue(ctx, priorityKey, priority)
-		s.ScheduleWithCtx(ctx, TaskFunc(f).SetPriority(priority))
+		s.ScheduleWithCtx(ctx, TaskFunc(f).WithPriority(priority))
 	}
 
 	s.Wait()

@@ -13,8 +13,8 @@ var (
 
 // Scheduler caches tasks and schedule tasks to work.
 type Scheduler struct {
-	queue     Queue
-	transport Transport
+	queue   Queue
+	workers chan chan Task
 
 	shutdown chan struct{}
 	stop     sync.Once
@@ -23,9 +23,9 @@ type Scheduler struct {
 // New a goroutine Scheduler.
 func New() *Scheduler {
 	return &Scheduler{
-		queue:     NewQueue(),
-		transport: NewMemoryTransport(),
-		shutdown:  make(chan struct{}),
+		queue:    NewQueue(),
+		workers:  make(chan chan Task),
+		shutdown: make(chan struct{}),
 	}
 }
 
@@ -40,7 +40,7 @@ func (s *Scheduler) Start(wsize int) {
 
 	for {
 		select {
-		case worker := <-s.transport.Workers():
+		case worker := <-s.workers:
 			task := s.queue.Get()
 			worker <- task
 		case <-s.shutdown:
@@ -60,12 +60,21 @@ func (s *Scheduler) isShutdown() bool {
 	return false
 }
 
-func (s *Scheduler) EnablePriority() error {
+func (s *Scheduler) SortByPriority() error {
 	if !s.queue.IsEmpty() {
 		return errors.New("the scheduler has start, can't set compare function in runtime")
 	}
 
 	s.queue.SetCompareFunc(CompareByPriority)
+	return nil
+}
+
+func (s *Scheduler) SortByDeadline() error {
+	if !s.queue.IsEmpty() {
+		return errors.New("the scheduler has start, can't set compare function in runtime")
+	}
+
+	s.queue.SetCompareFunc(CompareByDeadline)
 	return nil
 }
 

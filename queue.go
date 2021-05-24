@@ -151,7 +151,7 @@ func (q *Type) Len() int {
 
 func (q *Type) Less(i, j int) bool {
 	if q.compareFunc == nil {
-		panic("don't set compare function for Queue")
+		panic("Please set compare function for Queue")
 	}
 
 	return q.compareFunc(q.queue[i], q.queue[j])
@@ -176,4 +176,8 @@ func (q *Type) Pop() interface{} {
 
 func CompareByPriority(t1, t2 Task) bool {
 	return t1.(*task).priority < t2.(*task).priority
+}
+
+func CompareByDeadline(t1, t2 Task) bool {
+	return t1.(*task).deadline.Before(t2.(*task).deadline)
 }

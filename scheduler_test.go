@@ -135,7 +135,9 @@ func TestPriority(t *testing.T) {
 	type key string
 	var priorityKey key = "priority"
 	s := New()
-	s.EnablePriority()
+	if err := s.SortByPriority(); err != nil {
+		t.Fatal(err)
+	}
 	go s.Start(1)
 
 	f := func(ctx context.Context) error {

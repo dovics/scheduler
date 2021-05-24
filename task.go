@@ -85,6 +85,7 @@ type task struct {
 
 	retryTimes int
 	timeout    time.Duration
+	deadline   time.Time
 	priority   int
 }
 
@@ -126,8 +127,8 @@ func (t *task) WithTimeout(timeout time.Duration) Task {
 	if t.ctx != nil {
 		backgroundContext = t.ctx
 	}
-
-	context, cancelFunc := context.WithDeadline(backgroundContext, time.Now().Add(timeout))
+	t.deadline = time.Now().Add(timeout)
+	context, cancelFunc := context.WithDeadline(backgroundContext, t.deadline)
 
 	t.ctx = context
 	t.cancelFunc = cancelFunc
@@ -160,7 +161,7 @@ func (t *task) BindScheduler(s *Scheduler) Task {
 
 func (t *task) SetContext(ctx context.Context) Task {
 	if t.ctx != nil && t.ctx != ctx {
-		log.Printf("[Warning] don't have the same context, use the last")
+		log.Printf("[Warning] don't have the same context, use the lastest")
 	}
 
 	t.ctx = ctx

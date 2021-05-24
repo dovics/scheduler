@@ -50,13 +50,13 @@ func (w *goroutineWorker) Work() {
 		realTask.sche.queue.Done(t)
 	}
 
-	w.sche.transport.Workers() <- w.task
+	w.sche.workers <- w.task
 
 	for {
 		select {
 		case t := <-w.task:
 			wrapper(t)
-			w.sche.transport.Workers() <- w.task
+			w.sche.workers <- w.task
 		case <-w.stopCh:
 			close(w.task)
 			return

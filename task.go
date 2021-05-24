@@ -13,11 +13,14 @@ type Task interface {
 	WithTimeout(timeout time.Duration) Task
 	BindScheduler(s *Scheduler) Task
 	WithCancelFunc(timeout time.Duration) (Task, context.CancelFunc)
+	SetPriority(int) Task
 	SetContext(context context.Context) Task
 }
 
 // TaskFunc is a wrapper for task function.
 type TaskFunc func(context.Context) error
+
+var _ Task = TaskFunc(func(context.Context) error { return nil })
 
 // Do is the Task interface implementation for type TaskFunc.
 func (t TaskFunc) Do(ctx context.Context) error {
@@ -51,6 +54,13 @@ func (t TaskFunc) WithCancelFunc(timeout time.Duration) (Task, context.CancelFun
 	}, cancelFunc
 }
 
+func (t TaskFunc) SetPriority(priority int) Task {
+	return &task{
+		f:        t,
+		priority: priority,
+	}
+}
+
 func (t TaskFunc) BindScheduler(s *Scheduler) Task {
 	return &task{
 		f:    t,
@@ -75,6 +85,13 @@ type task struct {
 
 	retryTimes int
 	timeout    time.Duration
+	priority   int
+}
+
+func NewTask(f TaskFunc) Task {
+	return &task{
+		f: f,
+	}
 }
 
 func (t *task) Do(ctx context.Context) error {
@@ -129,6 +146,11 @@ func (t *task) WithCancelFunc(timeout time.Duration) (Task, context.CancelFunc) 
 	t.ctx = context
 	t.cancelFunc = cancelFunc
 	return t, cancelFunc
+}
+
+func (t *task) SetPriority(priority int) Task {
+	t.priority = priority
+	return t
 }
 
 func (t *task) BindScheduler(s *Scheduler) Task {

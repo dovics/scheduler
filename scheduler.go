@@ -21,28 +21,23 @@ type Scheduler struct {
 }
 
 // New a goroutine Scheduler.
-func New(wsize int) *Scheduler {
-	if wsize == 0 {
-		wsize = runtime.NumCPU()
-	}
-
-	s := &Scheduler{
+func New() *Scheduler {
+	return &Scheduler{
 		queue:     NewQueue(),
 		transport: NewMemoryTransport(),
 		shutdown:  make(chan struct{}),
 	}
+}
 
-	go s.start()
-
+// Starts the scheduling.
+func (s *Scheduler) Start(wsize int) {
+	if wsize == 0 {
+		wsize = runtime.NumCPU()
+	}
 	for i := 0; i < wsize; i++ {
 		s.startWorker(s.shutdown)
 	}
 
-	return s
-}
-
-// Starts the scheduling.
-func (s *Scheduler) start() {
 	for {
 		select {
 		case worker := <-s.transport.Workers():
@@ -63,6 +58,15 @@ func (s *Scheduler) isShutdown() bool {
 	}
 
 	return false
+}
+
+func (s *Scheduler) EnablePriority() error {
+	if !s.queue.IsEmpty() {
+		return errors.New("the scheduler has start, can't set compare function in runtime")
+	}
+
+	s.queue.SetCompareFunc(CompareByPriority)
+	return nil
 }
 
 // Schedule push a task on queue.

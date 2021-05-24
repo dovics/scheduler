@@ -14,7 +14,8 @@ const (
 func TestScheduler(t *testing.T) {
 	taskNum := 10
 	counter := 0
-	s := New(wSize)
+	s := New()
+	go s.Start(wSize)
 
 	for i := 0; i < taskNum; i++ {
 		s.Schedule(TaskFunc(func(ctx context.Context) error {
@@ -34,7 +35,8 @@ func TestScheduler(t *testing.T) {
 func TestTaskCrash(t *testing.T) {
 	taskNum := 10
 	counter := 0
-	s := New(wSize)
+	s := New()
+	go s.Start(wSize)
 
 	for i := 0; i < taskNum+wSize; i++ {
 		s.Schedule(TaskFunc(func(ctx context.Context) error {
@@ -53,10 +55,11 @@ func TestTaskCrash(t *testing.T) {
 
 func TestCancel(t *testing.T) {
 	counter := 0
-	s := New(wSize)
+	s := New()
+	go s.Start(wSize)
 
 	f := func(ctx context.Context) error {
-		time.Sleep(2 * time.Second)
+		time.Sleep(2000)
 		return nil
 	}
 
@@ -66,12 +69,12 @@ func TestCancel(t *testing.T) {
 
 	s.Schedule(TaskFunc(func(ctx context.Context) error {
 		select {
-		case <-time.After(1 * time.Second):
+		case <-time.After(1000):
 			counter++
 		case <-ctx.Done():
 		}
 		return nil
-	}).WithTimeout(1 * time.Second))
+	}).WithTimeout(1000))
 
 	s.Wait()
 	s.Stop()
@@ -85,7 +88,8 @@ func TestRetry(t *testing.T) {
 	taskNum := 10
 	counter := 0
 	retryTimes := 10
-	s := New(wSize)
+	s := New()
+	go s.Start(wSize)
 	f := func(ctx context.Context) error {
 		counter++
 		return errors.New("test retry")
@@ -101,4 +105,89 @@ func TestRetry(t *testing.T) {
 	if counter != taskNum*(retryTimes+1) {
 		t.Errorf("counter is expected as %d, actually %d", taskNum*(retryTimes+1), counter)
 	}
+}
+
+func TestDuplicate(t *testing.T) {
+	counter := 0
+	task := NewTask(TaskFunc(func(ctx context.Context) error {
+		counter++
+		return nil
+	}))
+
+	s := New()
+	go s.Start(wSize)
+	for i := 0; i < 10; i++ {
+		s.Schedule(task)
+	}
+
+	s.Wait()
+	s.Stop()
+	if counter != 1 {
+		t.Errorf("counter is expected as %d, actually %d", 1, counter)
+	}
+}
+
+func TestPriority(t *testing.T) {
+	taskNum := 10
+	counter := 0
+	priority := 0
+
+	type key string
+	var priorityKey key = "priority"
+	s := New()
+	s.EnablePriority()
+	go s.Start(1)
+
+	f := func(ctx context.Context) error {
+		counter++
+		priority := ctx.Value(priorityKey)
+		if counter != priority {
+			t.Errorf("counter is expected as %d, actually %d", priority, counter)
+		}
+
+		return nil
+	}
+
+	for i := 0; i < taskNum; i++ {
+		priority++
+		ctx := context.Background()
+
+		ctx = context.WithValue(ctx, priorityKey, priority)
+		s.ScheduleWithCtx(ctx, TaskFunc(f).SetPriority(priority))
+	}
+
+	s.Wait()
+	s.Stop()
+}
+
+func TestFIFO(t *testing.T) {
+	taskNum := 10
+	counter := 0
+	priority := 0
+
+	type key string
+	var priorityKey key = "priority"
+	s := New()
+	go s.Start(1)
+
+	f := func(ctx context.Context) error {
+		counter++
+		priority := ctx.Value(priorityKey)
+		if counter != priority {
+			t.Errorf("counter is expected as %d, actually %d", priority, counter)
+		}
+
+		return nil
+	}
+
+	for i := 0; i < taskNum; i++ {
+		priority++
+		ctx := context.Background()
+
+		ctx = context.WithValue(ctx, priorityKey, priority)
+		s.ScheduleWithCtx(ctx, TaskFunc(f))
+	}
+
+	s.Wait()
+	s.Stop()
 }
